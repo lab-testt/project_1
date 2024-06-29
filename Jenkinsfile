@@ -41,16 +41,31 @@ pipeline {
                         echo "Container status: ${containerStatus}"
                         
                         if (containerStatus != 'running') {
-                            echo "Container is not running. Attempting to start..."
-                            sh "docker start ${containerName}"
-                            sh 'sleep 10'  // Wait for container to start
+                            error "Container is not running. Current status: ${containerStatus}"
                         }
                         
                         // Check logs
                         echo "Container logs:"
                         sh "docker logs ${containerName}"
                         
-                        // Attempt to curl
+                        // Network diagnostics
+                        echo "Network diagnostics:"
+                        sh "docker network ls"
+                        sh "docker network inspect \$(docker network ls -q)"
+                        
+                        // Container network settings
+                        echo "Container network settings:"
+                        sh "docker inspect -f '{{json .NetworkSettings.Networks}}' ${containerName}"
+                        
+                        // Check if Node.js process is running
+                        def isNodeRunning = sh(script: "docker exec ${containerName} pgrep -f 'node app.js'", returnStatus: true)
+                        echo "Is Node.js process running? ${isNodeRunning == 0 ? 'Yes' : 'No'}"
+                        
+                        // Check if port 3000 is being listened on
+                        def isPortListened = sh(script: "docker exec ${containerName} netstat -tuln | grep :3000", returnStatus: true)
+                        echo "Is port 3000 being listened on? ${isPortListened == 0 ? 'Yes' : 'No'}"
+                        
+                        // Attempt to curl from within the container
                         def curlResult = sh(script: "docker exec ${containerName} curl -s http://localhost:3000/items", returnStatus: true)
                         
                         if (curlResult == 0) {
@@ -60,7 +75,7 @@ pipeline {
                                 error "Unexpected response from application"
                             }
                         } else {
-                            error "Failed to connect to the application"
+                            error "Failed to connect to the application within the container"
                         }
                     } else {
                         error "Could not find the application container"
