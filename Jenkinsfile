@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         DOCKER_COMPOSE_VERSION = '1.29.2'
+        APP_CONTAINER_NAME = 'your-project-root_app_1'
     }
 
     stages {
@@ -28,8 +29,14 @@ pipeline {
         stage('Test') {
             steps {
                 sh 'docker-compose up -d'
-                sh 'sleep 15' // Wait for the application to start
-                sh 'curl http://localhost:3000/items || exit 1' // Simple test
+                sh 'sleep 30' // Wait for the application to start
+                script {
+                    def response = sh(script: "docker exec ${APP_CONTAINER_NAME} curl -s http://localhost:3000/items", returnStdout: true).trim()
+                    echo "Response from app: ${response}"
+                    if (response != '[]') {
+                        error "Unexpected response from application"
+                    }
+                }
             }
         }
 
